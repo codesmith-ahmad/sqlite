@@ -1,6 +1,4 @@
 from myutils                import logging_config
-from logging                import info, exception, error
-from configparser           import ConfigParser
 from os                     import system         as S
 from environment            import environment    as E
 from environment            import result         as R
@@ -11,17 +9,43 @@ from prettytable            import SINGLE_BORDER
 from prettytable.colortable import ColorTable
 
 def main():
-    exit = False
-    while not exit:
-        env = E.Environment()
-        db = env.select_db() # Begin select menu
-        r = env.connect(db)  # Connect and return results
-            
-        config = ConfigParser(interpolation=None)
-        config.read('config.ini')
-        for k,v in config['Databases'].items():
-            cls.DB_OPTIONS[k] = v
-        cls.SETTINGS = config['ViewSettings']
+    env = E.Environment()
+    main_menu(env) # loop
+
+def main_menu(e: E.Environment):
+    exit_flag = 0
+    while exit_flag == 0:
+        filepath = e.select_db() # Begin select menu
+        e.connect(filepath)      # Connect to selected db
+        r = e.fetch_tables()     # Extract all tables to know whats available
+        exit_flag = sql_loop(e,r)
+        r = R.Result()
+
+def sql_loop(e: E.Environment,r: R.Result) -> int:
+    tables = r.list_of_tables
+    exit_flag = 0
+    while exit_flag == 0:
+        q = input(r"SQL> ")
+        query = q.strip().lower()
+        match query:
+            case 'exit': 
+                e.connection.close()
+                return 1
+            case 'close':
+                e.connection.close()
+                return 0
+            case 'help':
+                print_tables(tables)
+            case _:
+                r = e.execute(query)
+                r.display()
+
+def print_tables(tables):
+    separator = "------------"
+    print(separator + "\033[33m")
+    for table in tables:
+        print(table)
+    print("\033[0m" + separator)
 
 if __name__ == "__main__":
     main()

@@ -1,8 +1,14 @@
 from configparser import ConfigParser
+
+from prettytable import PrettyTable
 from myutils import type_library as T
 from myutils import file_module as F
 from logging import info
 from cutie import select
+from sqlite3 import Connection, connect
+from sqlite3 import Cursor
+from sqlite3 import Error # TODO
+from environment.result import Result
 
 class Environment:
     """Environment to this SQLite console"""
@@ -14,6 +20,8 @@ class Environment:
         self.config = self.load_settings()  # Parse config.ini
         self.menu_dict = self.load_menu()        # Read list of DBs from config
         self.models = self.load_models()    # Load models (DTOs)
+        self.connection: Connection = None
+        self.cursor: Cursor = None
         
     def load_settings(self) -> ConfigParser:
         """Parses config.ini and loads it up in Environment"""
@@ -37,111 +45,55 @@ class Environment:
     
     def select_db(self) -> str:
         """Returns filepath of selected database"""
-        db_names = list(self.menu_dict.keys())
-        db_filepaths = list(self.menu_dict.values())
-        print("\n\033[?mSelect database\n\033[0m:\n")
-        index = select(
-            options= db_names + ["\033[0m"],
-            caption_indices=[len(db_names) - 1],
+        db_names = list(self.menu_dict.keys()) + ["\033[0m"] # secretly adding caption to reset ansi styles
+        db_filepaths = list(self.menu_dict.values())         #   |
+        print("\n\033[33mSelect database\033[0m:")           #   |
+        index = select(                                      #   |
+            options= db_names,                               #   V
+            caption_indices=[len(db_names) - 1], # last is caption, does not count
             deselected_prefix="\033[0m   ",
             selected_prefix=" \033[92m>\033[7m\033[0m \033[7m" # 92 = green, 7 = reverse
             )
+        # TODO
+        # if position is last option
         return db_filepaths[index]
     
-    def start(cls) -> None:
-        cls.initialize()
-        print("Select database:\n")
-        list_of_options = list(cls.DB_OPTIONS.keys())
-        idx = select(list_of_options,deselected_prefix="\033[0m   ",selected_prefix=" \033[92m> \033[7m")
-        selected_option = list_of_options[idx]
-        selected_database = cls.DB_OPTIONS[selected_option]
-        command = ConnectionCommand(selected_database)
-        report = Receiver.execute(command)
-        cls.consume(report)
-        cls.main_loop()       
-
-    @classmethod
-    def load_banner(cls):
-        info("loading banner")
-        banner = open(cls.SETTINGS['banner']).read()
-        color = cls.SETTINGS['banner_color']
-        cls.BANNER = f"\033[{color}m{banner}\033[0m"
-         
-    @classmethod
-    def banner(cls) -> None:
-        """Prints the banner"""
-        print(cls.BANNER)
+    def connect(self,data_source:str) -> None:
+        info(f"Connecting to {data_source}...")
+        self.connection = connect(data_source)
+        self.cursor = self.connection.cursor()
+        sqlite_version = self.cursor.execute("SELECT sqlite_version()").fetchone()[0]
+        info(f"Successfully connected to SQLite version {sqlite_version}")
         
-    @classmethod
-    def menu_dict(cls):
-        """Prints the menu"""
-        print(cls.MENU)
-        
-    # @classmethod
-    # def main_loop(cls):
-    #     over = False
-    #     cls.banner()
-    #     cls.menu()
-    #     while not over:
-    #         user_input = input("> ")
-    #         command = cls.process(user_input)
-    #         report = Receiver.execute(command)
-    #         system('cls')
-    #         cls.banner()
-    #         cls.consume(report)
+    def fetch_tables(self) -> Result:
+        r = Result()
+        query = r"""
+            SELECT name FROM sqlite_master
+            WHERE
+            type = 'table' AND
+            name NOT LIKE '$%' AND
+            name NOT LIKE 'sqlite%';
+            """
+        tuples = self.cursor.execute(query).fetchall()
+        for v in tuples:
+                r.list_of_tables += [v[0]]
+        return r
     
-    @classmethod
-    def process(cls, raw_input):
-        """
-        Take raw input, refine it, creates command
-        """
+    def execute(self,query:str) -> Result:
         try:
-            refined_input = raw_input.strip().lower().split()
-            if cls.mode == 'SQL' and refined_input[0] in cls.tables:
-                command = SelectionCommand(
-                    target=refined_input[0],
-                    columns=['*']
-                    )
+            r = Result()
+            c = self.cursor # Get cursor for reuse
+            meta = c.execute(f"{query} LIMIT 0").description # See https://stackoverflow.com/questions/37495497/sql-query-with-limit-0
+            data = c.execute(query)
+            r.query = query
+            r.columns = [column[0] for column in meta]
+            r.rows = data.fetchall()
+        except Error as e:
+            r.error = e
         except Exception as e:
-            exception(f"ERROR: SEEK HELP ||| {e}")
+            r.error = e
         finally:
-            return command
-        
-    # @classmethod
-    # def consume(cls, repor):
-    #     match report.TYPE_OF_REPORT:
-    #         case Operation.CONNECTION:
-    #             return cls.consume_connection_report(report)
-    #         case Operation.SELECTION:
-    #             return cls.consume_selection_report(report)
-    #         case Operation.INSERTION:
-    #             return cls.consume_insertion_report(report)
-    #         case Operation.ALTERATION:
-    #             return cls.consume_alteration_report(report)
-    #         case Operation.DELETION:
-    #             return cls.consume_deletion_report(report)
-    #         case Operation.GENERIC:
-    #             exception("\033[31mUNKNOWN REPORT TYPE\033[0m")
-    #             raise ValueError
-    
-    @classmethod
-    def consume_connection_report(cls,report) -> None:
-        cls.tables = report.list_of_tables
-        msg = f"Success! Connected to SQLite version {report.sqlite_version}"
-        info(msg)
-        
-    @classmethod
-    def consume_selection_report(cls,report) -> None:
-        table = report.table # string
-        columns = report.headers # list of strings
-        rows = report.query_results # list of list of strings and int
- 
-        table = PrettyTable()
-        table.field_names = columns
-        table.add_rows(rows)
-        table.set_style(15)
-
-        print(table)
+            return r
 
     @classmethod
     def __str__(cls):
