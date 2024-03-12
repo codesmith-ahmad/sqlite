@@ -15,15 +15,15 @@ def main():
 def main_menu(e: E.Environment):
     exit_flag = 0
     while exit_flag == 0:
-        filepath = e.select_db() # Begin select menu
+        filepath = e.select_db() # Begin select menu #TODO MOVE select_db outside Environement. initialzie Env only when filepath acquired
         e.connect(filepath)      # Connect to selected db
-        r = e.fetch_tables()     # Extract all tables to know whats available
-        exit_flag = sql_loop(e,r)
+        e.fetch_tables()         # Extract all tables to know whats available
+        exit_flag = sql_loop(e)
         r = R.Result()
 
-def sql_loop(e: E.Environment,r: R.Result) -> int:
-    tables = r.list_of_tables
+def sql_loop(e: E.Environment) -> int:
     exit_flag = 0
+    print("DO NOT FORGET TO COMMIT UPDATES")
     while exit_flag == 0:
         q = input(r"SQL> ")
         query = q.strip().lower()
@@ -35,7 +35,7 @@ def sql_loop(e: E.Environment,r: R.Result) -> int:
                 e.connection.close()
                 return 0
             case 'help':
-                print_tables(tables)
+                print_tables(e.tables)
             case _:
                 r = e.execute(query)
                 r.display()

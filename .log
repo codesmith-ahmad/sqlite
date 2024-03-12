@@ -1,6 +1,6 @@
-2024-03-11 15:27:04 [environment.py:19] Intializing Environment
-2024-03-11 15:27:04 [environment.py:28] Loading config
-2024-03-11 15:27:04 [environment.py:35] Loading menu
-2024-03-11 15:27:04 [environment.py:43] Loading models
-2024-03-11 15:27:06 [environment.py:62] Connecting to D:/OneDrive/DATA/dummy.db...
-2024-03-11 15:27:07 [environment.py:66] Successfully connected to SQLite version 3.43.1
+2024-03-11 22:13:46 [environment.py:21] Intializing Environment
+2024-03-11 22:13:46 [environment.py:31] Loading config
+2024-03-11 22:13:46 [environment.py:38] Loading menu
+2024-03-11 22:13:46 [environment.py:46] Loading models
+2024-03-11 22:13:49 [environment.py:65] Connecting to D:/OneDrive/DATA/omnirecords.db...
+2024-03-11 22:13:49 [environment.py:72] Successfully connected to SQLite version 3.43.1

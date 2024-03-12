@@ -1,5 +1,6 @@
 import sqlite3
 import datetime
+import re
 from configparser import ConfigParser
 from prettytable import PrettyTable
 from myutils import type_library as T
@@ -16,14 +17,14 @@ class Environment:
     
     MODELS_FOLDER = "models"
     
-    def __init__(self) -> T.Self:
+    def __init__(self,data_source:str=None) -> T.Self:
         info("Intializing Environment")
         configure_sqlite3()
         self.config = self.load_settings()  # Parse config.ini
         self.menu_dict = self.load_menu()   # Read list of DBs from config
         self.models = self.load_models()    # Load models (DTOs)
-        self.connection: Connection = None
-        # self.cursor: Cursor = None          Superfluous
+        self.connection: Connection = None  #TODO = self.connect(data_source)
+        self.tables: list[str] = []         #TODO = fetch_tables()
         
     def load_settings(self) -> ConfigParser:
         """Parses config.ini and loads it up in Environment"""
@@ -68,11 +69,9 @@ class Environment:
         )
         con.row_factory = sqlite3.Row # .execute() will now return Rows instead of tuples. Rows work similar to dict
         self.connection = con
-        # self.cursor = self.connection.cursor() Superfluous
         info(f"Successfully connected to SQLite version {con.execute("SELECT sqlite_version()").fetchone()[0]}")
         
-    def fetch_tables(self) -> Result:
-        r = Result()
+    def fetch_tables(self) -> None:
         query = r"""
             SELECT name FROM sqlite_master
             WHERE
@@ -80,27 +79,54 @@ class Environment:
             name NOT LIKE '$%' AND
             name NOT LIKE 'sqlite%';
             """
-        tuples = self.cursor.execute(query).fetchall()
-        for v in tuples:
-                r.list_of_tables += [v[0]]
-        return r
+        rows = self.connection.execute(query).fetchall()
+        tables = self.unpack(rows)
+        self.tables = [t[0] for t in tables]
     
     def execute(self,query:str) -> Result:
         try:
             r = Result()
-            c = self.cursor # Get cursor for reuse
-            meta = c.execute(f"{query} LIMIT 0").description # See https://stackoverflow.com/questions/37495497/sql-query-with-limit-0
-            data = c.execute(query)
+            c = self.connection
+            rows: list[sqlite3.Row] = c.execute(query).fetchall() # execute returns cursor, fetchall returns rows #TODO ONLY SELECT RETURN ROWS, HANDLE THE REST DIFFERENTLY
+            r.error = sqlite3.SQLITE_OK
             r.query = query
-            r.columns = [column[0] for column in meta]
-            r.rows = data.fetchall()
+            r.table = self.extract_table_name(query)
+            r.columns = rows[0].keys()
+            r.rows = self.unpack(rows)
         except Error as e:
             r.error = e
+        except IndexError as e:
+            r.columns = []
+            r.rows = [[]]
         except Exception as e:
             r.error = e
         finally:
             return r
+
+    def extract_table_name(self,query) -> str:
+        query_upper = query.strip().upper()
         
+        if query_upper.startswith('SELECT') or query_upper.startswith('DELETE'):
+            match = re.search(r'FROM\s+(\w+)', query, re.IGNORECASE)
+            return match.group(1) if match else None
+        elif query_upper.startswith('INSERT'):
+            match = re.search(r'INTO\s+(\w+)', query, re.IGNORECASE)
+            return match.group(1) if match else None
+        elif query_upper.startswith('UPDATE'):
+            match = re.search(r'UPDATE\s+(\w+)', query, re.IGNORECASE)
+            return match.group(1) if match else None
+        else:
+            return '~Not found~'
+    
+    def unpack(self,sqlite_rows: list[sqlite3.Row]) -> list[list]:
+        l = []
+        if len(sqlite_rows) == 0:
+            return [[]]
+        else:
+            for row in sqlite_rows:
+                l += [[val for val in row]]
+        return l
+
     def __str__(self):
         """
         String representation of the class.
@@ -111,7 +137,7 @@ class Environment:
 
 #TODO Refer to https://docs.python.org/3/library/sqlite3.html#adapter-and-converter-recipes
 
-def configure_sqlite3(self):
+def configure_sqlite3():
     sqlite3.register_adapter(datetime.date, adapt_date_iso)
     sqlite3.register_adapter(datetime.time, adapt_time_iso)
     sqlite3.register_adapter(datetime.datetime, adapt_datetime)
@@ -121,6 +147,7 @@ def configure_sqlite3(self):
     sqlite3.register_converter("time", convert_time)
     sqlite3.register_converter("datetime", convert_datetime)
     sqlite3.register_converter("file", convert_file)
+    sqlite3.register_converter("txt", convert_file)
     sqlite3.register_converter("yaml", convert_yaml)
 
 class MyFileObject:
@@ -150,7 +177,7 @@ def convert_date(val):
 
 def convert_time(val):
     """Convert 24-hr time to datetime.time object."""
-    iso_time_string = self.convert_to_iso(val) # TODO 2359 --> T23:59:00Z or sum like that
+    iso_time_string = convert_to_iso(val) # TODO 2359 --> T23:59:00Z or sum like that
     return datetime.time.fromisoformat()
 
 def convert_to_iso(val):
@@ -161,7 +188,10 @@ def convert_datetime(val):
     return datetime.datetime.fromisoformat(val.decode())
 
 def convert_file(val):
-    pass
+    return "FILE"
 
 def convert_yaml(val):
-    pass
+    return "YAML FILE"
+
+def convert_txt(val):
+    return val
