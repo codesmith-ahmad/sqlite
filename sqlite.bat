@@ -1,3 +1,0 @@
-python "sqlite.py"
-
-pause

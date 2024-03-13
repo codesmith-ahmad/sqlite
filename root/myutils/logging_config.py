@@ -4,7 +4,7 @@ import configparser
 import logging
 
 config = configparser.ConfigParser()
-config.read('config.ini')
+config.read('root/config.ini')
 
 if not logging.getLogger().hasHandlers():
     logging.basicConfig(filename=config['Logfile']['filename'],

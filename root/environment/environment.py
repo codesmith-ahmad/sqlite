@@ -6,7 +6,7 @@ from prettytable import PrettyTable
 from myutils import type_library as T
 from myutils import file_module as F
 from logging import info
-from cutie import select
+from cutie   import select
 from sqlite3 import Connection, connect
 from sqlite3 import Cursor
 from sqlite3 import Error # TODO
@@ -15,7 +15,8 @@ from environment.result import Result
 class Environment:
     """Environment to this SQLite console"""
     
-    MODELS_FOLDER = "models"
+    CONFIG_FILE = "root/config.ini"
+    MODELS_FOLDER = "root/models"
     
     def __init__(self,data_source:str=None) -> T.Self:
         info("Intializing Environment")
@@ -30,7 +31,7 @@ class Environment:
         """Parses config.ini and loads it up in Environment"""
         info("Loading config")
         config = ConfigParser(interpolation=None)
-        config.read('config.ini')
+        config.read(self.CONFIG_FILE)
         return config
         
     def load_menu(self) -> dict[str,str]:
