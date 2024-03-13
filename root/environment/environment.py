@@ -15,8 +15,8 @@ from environment.result import Result
 class Environment:
     """Environment to this SQLite console"""
     
-    CONFIG_FILE = "root/config.ini"
-    MODELS_FOLDER = "root/models"
+    CONFIG_FILE = "config.ini"
+    MODELS_FOLDER = "models"
     
     def __init__(self,data_source:str=None) -> T.Self:
         info("Intializing Environment")
