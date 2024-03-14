@@ -1,5 +1,4 @@
 git pull
-
-python "root\main.py"
-
+cd root
+python "main.py"
 pause
