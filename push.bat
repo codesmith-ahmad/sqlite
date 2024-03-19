@@ -8,5 +8,5 @@ git commit
 echo ---------
 git push
 echo ====================
-echo  
+echo ' '
 pause
